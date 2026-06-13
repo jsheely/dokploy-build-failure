@@ -8,7 +8,7 @@ WORKDIR /app
 RUN corepack enable
 
 # Install dependencies (cached unless lockfile/manifest change)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the source and build
@@ -22,7 +22,7 @@ WORKDIR /app
 RUN corepack enable
 
 # Only need the production manifest + built output to serve the preview
-COPY --from=build /app/package.json /app/pnpm-lock.yaml ./
+COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/vite.config.ts ./vite.config.ts
