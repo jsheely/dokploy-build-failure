@@ -1,75 +1,59 @@
-# React + TypeScript + Vite
+# dokploy-build-failure
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A deliberately broken React + TypeScript + Vite project used to test how a
+deployment platform (e.g. [Dokploy](https://dokploy.com/)) handles a **failing
+Docker build**.
 
-Currently, two official plugins are available:
+## What it's for
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+This repo exists to **build and fail on purpose**. It is a fixture for
+exercising failure paths in CI/CD and deployment tooling — verifying that a
+failed build is reported correctly, surfaces useful logs, and does not deploy a
+broken image.
 
-## React Compiler
+## How it fails
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+The app is a standard Vite SPA. The build script runs:
 
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+tsc -b && vite build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The failure is introduced in `src/App.tsx`, which imports a static asset that
+does not exist:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```ts
+import heroImg from './assets/hero-banner.png' // file is actually hero.png
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Because Vite declares an ambient `*.png` wildcard module, this **passes
+`tsc -b`** (TypeScript accepts any import path matching the wildcard) but
+**fails at `vite build`**, where the Rolldown bundler cannot resolve the module:
+
+```
+Module not found.
+src/App.tsx → import heroImg from "./assets/hero-banner.png"
+```
+
+So the failure happens specifically during the `vite build` stage, not during
+type-checking.
+
+## Docker
+
+A multi-stage `Dockerfile` builds and serves the app:
+
+```bash
+docker build -t dokploy-build-failure .
+```
+
+The build aborts at the `RUN pnpm build` line, exactly where the deployment
+build is expected to fail.
+
+## Fixing it (if you want a passing build)
+
+Restore the import to the asset that actually exists:
+
+```diff
+-import heroImg from './assets/hero-banner.png'
++import heroImg from './assets/hero.png'
 ```
