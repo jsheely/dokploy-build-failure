@@ -1,0 +1,5 @@
+# Disable pnpm's minimum-release-age policy for this project.
+# Without this, pnpm refuses to install package versions that were
+# published more recently than the globally configured threshold
+# (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). 0 = no age requirement.
+minimumReleaseAge: 0
